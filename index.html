@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RescueVision AI - Disaster Response Assistant</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f19; color: #f3f4f6; }
+        .glass { background: rgba(17, 24, 39, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glow-btn { transition: all 0.3s ease; box-shadow: 0 0 0px rgba(59, 130, 246, 0); }
+        .glow-btn:hover { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+        .hidden-section { display: none; }
+        #map { height: 400px; border-radius: 1rem; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-layout flex-col justify-between">
+
+    <nav class="glass sticky top-0 z-50 px-6 py-4 flex items-center justify-between border-b border-gray-800">
+        <div class="flex items-center gap-3">
+            <div class="h-10 w-10 bg-gradient-to-tr from-blue-600 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                ⚠️
+            </div>
+            <span class="text-xl font-bold tracking-wider bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">RescueVision AI</span>
+        </div>
+        
+        <div class="flex items-center gap-6 text-sm font-medium">
+            <button onclick="switchTab('dashboard')" class="hover:text-blue-400 transition cursor-pointer">Dashboard</button>
+            <button onclick="switchTab('about')" class="hover:text-blue-400 transition cursor-pointer">About</button>
+            <span id="user-display" class="text-cyan-400 hidden"></span>
+            <button id="auth-nav-btn" onclick="openAuthModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition glow-btn">Sign In</button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8 flex-grow">
+        
+        <section id="dashboard-section" class="space-y-8 animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <div class="glass p-6 rounded-2xl space-y-6">
+                    <h2 class="text-xl font-semibold border-b border-gray-800 pb-3 flex items-center gap-2">
+                        <span>📥</span> Live Incident Ingestion
+                    </h2>
+                    
+                    <form id="analyze-form" onsubmit="handleAnalysis(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-2">1. Satellite / Drone Image Capture</label>
+                            <div class="border-2 border-dashed border-gray-700 hover:border-blue-500 transition rounded-xl p-4 text-center cursor-pointer relative bg-gray-900/40">
+                                <input type="file" id="image_file" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" onchange="previewImage(event)" />
+                                <div id="upload-placeholder" class="text-gray-500">
+                                    <p>📸 Click or drag satellite drone imagery here</p>
+                                </div>
+                                <img id="image-preview" class="hidden max-h-48 mx-auto rounded-lg shadow-md" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm text-gray-400">2. Crisis / Feed / Social Reports</label>
+                                <button type="button" onclick="startVoiceRecognition()" class="text-xs bg-gray-800 hover:bg-gray-700 text-cyan-400 px-3 py-1 rounded-full flex items-center gap-1 transition">
+                                    🎙️ Voice to Text
+                                </button>
+                            </div>
+                            <textarea id="report_text" rows="4" placeholder="Paste emergency data feeds here... e.g., 'Flood reported near Riverside Colony. Around 50 people trapped. Need boats urgently.'" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl p-3 text-sm focus:outline-none focus:border-blue-500 transition text-white"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white py-3 rounded-xl font-medium tracking-wide transition glow-btn shadow-lg">
+                            Run Strategic AI Diagnostics
+                        </button>
+                    </form>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="glass p-6 rounded-2xl">
+                        <h2 class="text-xl font-semibold border-b border-gray-800 pb-3 flex items-center gap-2">
+                            <span>🤖</span> Intelligent Triaging Engine
+                        </h2>
+                        <div id="loading-state" class="hidden py-12 text-center text-gray-400">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                            Processing operational data infrastructure...
+                        </div>
+                        <div id="output-placeholder" class="py-12 text-center text-gray-500 text-sm">
+                            Submit multi-modal metrics on the left to activate active telemetry analysis.
+                        </div>
+                        
+                        <div id="analysis-results" class="hidden space-y-4 mt-4">
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div class="bg-gray-900/80 p-3 rounded-xl"><span class="text-gray-500 block">Location</span><strong id="out-loc">-</strong></div>
+                                <div class="bg-gray-900/80 p-3 rounded-xl"><span class="text-gray-500 block">Disaster Type</span><strong id="out-type">-</strong></div>
+                                <div class="bg-gray-900/80 p-3 rounded-xl"><span class="text-gray-500 block">Severity Level</span><strong id="out-severity">-</strong></div>
+                                <div class="bg-gray-900/80 p-3 rounded-xl"><span class="text-gray-500 block">Estimated Impact</span><strong id="out-people">-</strong></div>
+                            </div>
+                            <div class="p-3 bg-red-950/40 border border-red-900/60 rounded-xl text-sm flex justify-between">
+                                <span>Operational Action Priority:</span>
+                                <strong id="out-priority" class="text-red-400 uppercase">Immediate Rescue</strong>
+                            </div>
+                            
+                            <div class="p-4 bg-gray-900/80 border border-gray-800 rounded-xl space-y-2">
+                                <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                                    <span class="text-sm font-semibold text-cyan-400">📦 Suggested Resource Allocation</span>
+                                    <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold" id="out-score">Score: 95/100</span>
+                                </div>
+                                <p id="out-resources" class="text-xs text-gray-300 leading-relaxed"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-2xl">
+                <h2 class="text-xl font-semibold border-b border-gray-800 pb-3 mb-4 flex items-center gap-2">
+                    <span>🗺️</span> Rescue Priority Map (OpenStreetMap Deployment)
+                </h2>
+                <div id="map"></div>
+            </div>
+        </section>
+
+        <section id="about-section" class="glass p-8 rounded-2xl max-w-3xl mx-auto hidden-section space-y-4">
+            <h2 class="text-3xl font-bold text-white tracking-tight">About RescueVision AI</h2>
+            <p class="text-gray-400 leading-relaxed">
+                RescueVision AI is an avant-garde mission-critical analytical framework designed to assist response squads during catastrophic natural occurrences. By processing real-time public telemetry, visual feeds, and drone tracking layers, the machine engine helps prioritize high-risk environments instantly.
+            </p>
+            <div class="border-t border-gray-800 pt-4">
+                <h3 class="text-lg font-semibold text-cyan-400 mb-2">Core Competencies</h3>
+                <ul class="list-disc pl-5 space-y-1 text-sm text-gray-300">
+                    <li>Dynamic Multi-Modal Computer Vision Ingestion</li>
+                    <li>Natural Language Extraction Layers via Gemini LLM Frameworks</li>
+                    <li>Geospatial Hotspot Isolation Matrix Maps</li>
+                    <li>Automated Algorithmic Supply Chain Deployment Architecture</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <div id="auth-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="glass p-8 rounded-2xl w-full max-w-md relative space-y-6 mx-4">
+            <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white text-lg">✕</button>
+            <div class="flex justify-center border-b border-gray-800 pb-2 gap-4">
+                <button id="tab-login-toggle" onclick="toggleAuthTab('login')" class="text-lg font-bold text-blue-400 border-b-2 border-blue-400 pb-1">Sign In</button>
+                <button id="tab-signup-toggle" onclick="toggleAuthTab('signup')" class="text-lg font-bold text-gray-500 pb-1">Create Account</button>
+            </div>
+            
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+                <div id="username-field-wrapper" class="hidden">
+                    <label class="block text-xs text-gray-400 mb-1">Username</label>
+                    <input type="text" id="auth-username" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Email Address</label>
+                    <input type="email" id="auth-email" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Secure Password</label>
+                    <input type="password" id="auth-password" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <button type="submit" id="auth-submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-medium transition shadow-md shadow-blue-500/20">Authenticate</button>
+            </form>
+        </div>
+    </div>
+
+    <footer class="glass border-t border-gray-800 text-center py-6 text-xs text-gray-500 space-y-1">
+        <p>Developed and deployed by Kaman Das ©2026</p>
+        <p>Made with Love ❤️</p>
+    </footer>
+
+    <script>
+        let currentAuthTab = 'login';
+        let map, currentMarker;
+
+        // Initialize Leaflet Map Instantiation
+        window.addEventListener('DOMContentLoaded', () => {
+            map = L.map('map').setView([34.0522, -118.2437], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+        });
+
+        function switchTab(tabName) {
+            if (tabName === 'dashboard') {
+                document.getElementById('dashboard-section').classList.remove('hidden-section');
+                document.getElementById('about-section').classList.add('hidden-section');
+            } else {
+                document.getElementById('dashboard-section').classList.add('hidden-section');
+                document.getElementById('about-section').classList.remove('hidden-section');
+            }
+        }
+
+        // Web Speech Feature Implementation
+        function startVoiceRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Web Speech API is not fully supported on this web browser browser environment.");
+                return;
+            }
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.start();
+            
+            recognition.onresult = function(event) {
+                const speechResult = event.results[0][0].transcript;
+                document.getElementById('report_text').value = speechResult;
+            };
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('upload-placeholder').classList.add('hidden');
+                    const img = document.getElementById('image-preview');
+                    img.src = e.target.result;
+                    img.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Handle Form Submission Pipeline
+        async function handleAnalysis(event) {
+            event.preventDefault();
+            
+            // Authorization Guard Check
+            const loggedInUser = sessionStorage.getItem('username');
+            if (!loggedInUser) {
+                alert("Access Denied: Please create an account or sign in before using the AI analysis platform.");
+                openAuthModal();
+                return;
+            }
+
+            const text = document.getElementById('report_text').value;
+            const fileInput = document.getElementById('image_file');
+            
+            if(!text && !fileInput.files[0]) {
+                alert("Please provide either text telemetry or image frames.");
+                return;
+            }
+
+            document.getElementById('output-placeholder').classList.add('hidden');
+            document.getElementById('analysis-results').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('report_text', text);
+            if(fileInput.files[0]) {
+                formData.append('image_file', fileInput.files[0]);
+            }
+
+            try {
+                const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                document.getElementById('loading-state').classList.add('hidden');
+
+                if (data.success) {
+                    document.getElementById('analysis-results').classList.remove('hidden');
+                    document.getElementById('out-loc').innerText = data.analysis.location;
+                    document.getElementById('out-type').innerText = data.analysis.disaster;
+                    document.getElementById('out-severity').innerText = data.analysis.severity;
+                    document.getElementById('out-people').innerText = data.analysis.people;
+                    document.getElementById('out-priority').innerText = data.analysis.priority;
+                    document.getElementById('out-resources').innerText = data.resources.recommended;
+                    document.getElementById('out-score').innerText = `Priority Score: ${data.resources.score}/100`;
+
+                    // Dynamic Mapping Component Update
+                    if(currentMarker) map.removeLayer(currentMarker);
+                    
+                    const { lat, lng } = data.map_coords;
+                    map.setView([lat, lng], 12);
+                    
+                    let markerColor = '🟢';
+                    if(data.analysis.severity.toLowerCase().includes('crit')) markerColor = '🔴';
+                    else if (data.analysis.severity.toLowerCase().includes('mod')) markerColor = '🟠';
+
+                    currentMarker = L.marker([lat, lng]).addTo(map)
+                        .bindPopup(`<b>${markerColor} ${data.analysis.location}</b><br>Disaster: ${data.analysis.disaster}<br>Priority: ${data.analysis.priority}`)
+                        .openPopup();
+                } else {
+                    alert("Analysis Failure: " + data.error);
+                    document.getElementById('output-placeholder').classList.remove('hidden');
+                }
+            } catch(e) {
+                alert("Server exception occurred.");
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('output-placeholder').classList.remove('hidden');
+            }
+        }
+
+        // Auth Logic Implementations
+        function openAuthModal() { document.getElementById('auth-modal').classList.remove('hidden'); }
+        function closeAuthModal() { document.getElementById('auth-modal').classList.add('hidden'); }
+        
+        function toggleAuthTab(tab) {
+            currentAuthTab = tab;
+            const userWrapper = document.getElementById('username-field-wrapper');
+            const loginToggle = document.getElementById('tab-login-toggle');
+            const signupToggle = document.getElementById('tab-signup-toggle');
+
+            if(tab === 'signup') {
+                userWrapper.classList.remove('hidden');
+                signupToggle.className = "text-lg font-bold text-blue-400 border-b-2 border-blue-400 pb-1";
+                loginToggle.className = "text-lg font-bold text-gray-500 pb-1";
+            } else {
+                userWrapper.classList.add('hidden');
+                loginToggle.className = "text-lg font-bold text-blue-400 border-b-2 border-blue-400 pb-1";
+                signupToggle.className = "text-lg font-bold text-gray-500 pb-1";
+            }
+        }
+
+        async function handleAuthSubmit(event) {
+            event.preventDefault();
+            const username = document.getElementById('auth-username').value;
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+
+            const endpoint = currentAuthTab === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+            const payload = currentAuthTab === 'signup' ? { username, email, password } : { email, password };
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                    if(currentAuthTab === 'signup') {
+                        alert("Account verified successfully! You may now sign in.");
+                        toggleAuthTab('login');
+                    } else {
+                        sessionStorage.setItem('username', data.username);
+                        updateAuthNavbar(data.username);
+                        closeAuthModal();
+                    }
+                } else {
+                    alert("Error: " + data.error);
+                }
+            } catch (e) {
+                alert("Authentication operation exception.");
+            }
+        }
+
+        function updateAuthNavbar(username) {
+            const navBtn = document.getElementById('auth-nav-btn');
+            const display = document.getElementById('user-display');
+            if(username) {
+                display.innerText = `👤 ${username}`;
+                display.classList.remove('hidden');
+                navBtn.innerText = "Sign Out";
+                navBtn.onclick = handleLogout;
+            } else {
+                display.classList.add('hidden');
+                navBtn.innerText = "Sign In";
+                navBtn.onclick = openAuthModal;
+            }
+        }
+
+        async function handleLogout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            sessionStorage.removeItem('username');
+            updateAuthNavbar(null);
+            window.location.reload();
+        }
+
+        // Persist session caching verification on layout refreshes
+        if(sessionStorage.getItem('username')) {
+            updateAuthNavbar(sessionStorage.getItem('username'));
+        }
+    </script>
+</body>
+</html>
